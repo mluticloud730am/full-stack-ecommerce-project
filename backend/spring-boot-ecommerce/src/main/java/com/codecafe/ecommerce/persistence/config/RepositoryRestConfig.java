@@ -1,12 +1,7 @@
 package com.codecafe.ecommerce.persistence.config;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-
-import javax.persistence.EntityManager;
-import javax.persistence.metamodel.EntityType;
-
+import com.codecafe.ecommerce.persistence.entity.Product;
+import com.codecafe.ecommerce.persistence.entity.ProductCategory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.rest.core.config.RepositoryRestConfiguration;
@@ -14,56 +9,53 @@ import org.springframework.data.rest.webmvc.config.RepositoryRestConfigurer;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 
-import com.codecafe.ecommerce.persistence.entity.Product;
-import com.codecafe.ecommerce.persistence.entity.ProductCategory;
+import javax.persistence.EntityManager;
+import javax.persistence.metamodel.EntityType;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 @Configuration
 public class RepositoryRestConfig implements RepositoryRestConfigurer {
-    
-    private EntityManager entityManager;
-    
-    // constructor injection
+
     @Autowired
-    public RepositoryRestConfig(EntityManager entityManager) {
-        this.entityManager = entityManager;
-    }
-    
+    private EntityManager entityManager;
+
     @Override
-    public void configureRepositoryRestConfiguration(
-            RepositoryRestConfiguration config,
-            CorsRegistry cors) {
+    public void configureRepositoryRestConfiguration(RepositoryRestConfiguration config, CorsRegistry cors) {
 
-        HttpMethod[] unsupportedHttpMethods = { HttpMethod.PUT, HttpMethod.POST, HttpMethod.DELETE };
+        // ✅ CORS fix — allow Angular frontend to call backend
+        cors.addMapping("/api/**")
+            .allowedOrigins("http://54.152.221.95:84")
+            .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+            .allowedHeaders("*");
 
-        // disable HTTP methods for Product
-        config.getExposureConfiguration()
-              .forDomainType(Product.class)
-              .withItemExposure((metadata, httpMethods) -> httpMethods.disable(unsupportedHttpMethods))
-              .withCollectionExposure((metadata, httpMethods) -> httpMethods.disable(unsupportedHttpMethods));
+        // Disable unsafe methods
+        HttpMethod[] unsupportedActions = {
+            HttpMethod.PUT, HttpMethod.POST, HttpMethod.DELETE, HttpMethod.PATCH
+        };
+        disableHttpMethods(Product.class, config, unsupportedActions);
+        disableHttpMethods(ProductCategory.class, config, unsupportedActions);
 
-        // disable HTTP methods for ProductCategory
-        config.getExposureConfiguration()
-              .forDomainType(ProductCategory.class)
-              .withItemExposure((metadata, httpMethods) -> httpMethods.disable(unsupportedHttpMethods))
-              .withCollectionExposure((metadata, httpMethods) -> httpMethods.disable(unsupportedHttpMethods));
-
-        // expose entity IDs
+        // Expose IDs
         exposeIds(config);
     }
 
-    // expose all entity IDs dynamically
+    private void disableHttpMethods(Class theClass,
+                                    RepositoryRestConfiguration config,
+                                    HttpMethod[] unsupportedActions) {
+        config.getExposureConfiguration()
+              .forDomainType(theClass)
+              .withItemExposure((meta, httpMethods) -> httpMethods.disable(unsupportedActions))
+              .withCollectionExposure((meta, httpMethods) -> httpMethods.disable(unsupportedActions));
+    }
+
     private void exposeIds(RepositoryRestConfiguration config) {
-
         Set<EntityType<?>> entities = entityManager.getMetamodel().getEntities();
-
-        List<Class<?>> entityClasses = new ArrayList<>();
-
-        for (EntityType<?> entityType : entities) {
-            entityClasses.add(entityType.getJavaType());
+        List<Class> entityClasses = new ArrayList<>();
+        for (EntityType<?> entity : entities) {
+            entityClasses.add(entity.getJavaType());
         }
-
-        Class<?>[] domainTypes = entityClasses.toArray(new Class<?>[0]);
-
-        config.exposeIdsFor(domainTypes);
+        config.exposeIdsFor(entityClasses.toArray(new Class[0]));
     }
 }
