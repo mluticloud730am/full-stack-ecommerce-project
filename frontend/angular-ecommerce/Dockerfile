@@ -1,26 +1,24 @@
-# ---------- Stage 1: Build ----------
+# ---------- Stage 1 ----------
 FROM node:14-alpine AS build
 
 WORKDIR /app
 
-# copy only dependencies first
 COPY package*.json ./
-
-# install dependencies (optimized)
 RUN npm install --legacy-peer-deps --no-audit --no-fund
 
-# copy remaining code
 COPY . .
-
-# build angular app
 RUN npm run build -- --configuration production
 
 
-# ---------- Stage 2: Serve ----------
+# ---------- Stage 2 ----------
 FROM nginx:alpine
 
-# copy build output
-COPY --from=build /app/dist /usr/share/nginx/html
+RUN rm -rf /usr/share/nginx/html/*
+
+COPY --from=build /app/dist/angular-ecommerce /usr/share/nginx/html
+
+# add custom nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
